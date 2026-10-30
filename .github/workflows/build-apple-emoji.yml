@@ -59,6 +59,66 @@ jobs:
           cp /tmp/apple-emoji-source/EmojiCompatApple.java /tmp/apple-emoji-source/files/extensions/instagram/src/main/java/app/hushgram/extension/instagram/stories/
           python3 /tmp/apple-emoji-source/apply_to_hushgram.py "$GITHUB_WORKSPACE"
           git diff --stat
+      - name: Verify Google's Linux aapt2 artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTHON'
+          import hashlib
+          import pathlib
+          import urllib.request
+          import xml.etree.ElementTree as ET
+
+          # HushGram pins the Windows aapt2 checksum. Linux GitHub runners need this
+          # platform-specific artifact, too. Download exclusively from Google's Maven.
+          version = "9.1.0-14792394"
+          artifact = f"aapt2-{version}-linux.jar"
+          url = f"https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/{version}/{artifact}"
+          request = urllib.request.Request(url, headers={"User-Agent": "HushGram-Android-Build/1.0"})
+          digest = hashlib.sha256()
+          with urllib.request.urlopen(request, timeout=120) as response:
+              if response.status != 200:
+                  raise RuntimeError(f"Official Google Maven download failed: HTTP {response.status}")
+              while True:
+                  chunk = response.read(1024 * 1024)
+                  if not chunk:
+                      break
+                  digest.update(chunk)
+          sha = digest.hexdigest()
+          print(f"Official Google Maven {artifact}: sha256 {sha}")
+          xml_path = pathlib.Path("gradle/verification-metadata.xml")
+          tree = ET.parse(xml_path)
+          root = tree.getroot()
+          namespace = "https://schema.gradle.org/dependency-verification"
+          ns = lambda name: f"{{{namespace}}}{name}"
+          targets = [element for element in root.findall(f".//{ns('component')}")
+                     if element.attrib.get("group") == "com.android.tools.build"
+                     and element.attrib.get("name") == "aapt2"
+                     and element.attrib.get("version") == version]
+          if len(targets) != 1:
+              raise RuntimeError(f"Expected one aapt2 component, found {len(targets)}")
+          target = targets[0]
+          artifacts = [a for a in target.findall(ns("artifact")) if a.attrib.get("name") == artifact]
+          if len(artifacts) > 1:
+              raise RuntimeError("Duplicate Linux aapt2 artifact entries")
+          if artifacts:
+              existing = artifacts[0].find(ns("sha256"))
+              if existing is None or existing.attrib.get("value") != sha:
+                  raise RuntimeError("Existing pinned Linux aapt2 checksum disagrees with Google Maven")
+              print("Existing Linux aapt2 checksum verified.")
+          else:
+              # Make the minimum change without reformatting the rest of the pinned manifest.
+              original = xml_path.read_text()
+              component_tag = f'<component group="com.android.tools.build" name="aapt2" version="{version}">'
+              if original.count(component_tag) != 1:
+                  raise RuntimeError("Cannot uniquely locate the pinned aapt2 entry")
+              insert = ('\n         <artifact name="' + artifact + '">'
+                        + '\n            <sha256 value="' + sha + '" origin="Downloaded from official Google Maven during experimental CI build"/>'
+                        + '\n         </artifact>')
+              xml_path.write_text(original.replace(component_tag, component_tag + insert, 1))
+              ET.parse(xml_path)
+              print("Added only the Linux aapt2 artifact checksum; strict Gradle verification remains enabled.")
+          PYTHON
       - name: Build actual Morphe .mpp bundle
         shell: bash
         run: |
