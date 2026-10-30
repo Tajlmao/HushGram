@@ -26,8 +26,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Check preinstalled Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          test -n "${ANDROID_HOME:-}"
+          test -d "$ANDROID_HOME"
+          ls "$ANDROID_HOME"
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Check checkout and apply emoji-only patch
