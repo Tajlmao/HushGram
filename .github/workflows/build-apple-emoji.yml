@@ -59,6 +59,10 @@ jobs:
           cp /tmp/apple-emoji-source/EmojiCompatApple.java /tmp/apple-emoji-source/files/extensions/instagram/src/main/java/app/hushgram/extension/instagram/stories/
           python3 /tmp/apple-emoji-source/apply_to_hushgram.py "$GITHUB_WORKSPACE"
           git diff --stat
+          # HushGram hashes Git-indexed source inputs and rejects untracked source.
+          # Stage the generated emoji helper and the modified existing files.
+          git add -- patches/src extensions/instagram/src
+          git status --short
       - name: Verify Google's Linux aapt2 artifact
         shell: bash
         run: |
@@ -125,6 +129,14 @@ jobs:
           set -euo pipefail
           chmod +x ./gradlew
           ./gradlew --no-daemon :patches:generatePatchesList
+          # Stage generated catalog and the CI-only Linux checksum entry, too.
+          # Without this, scripts/build-inputs.gradle rejects untracked inputs.
+          git add -- patches-list.json gradle/verification-metadata.xml
+          if test -n "$(git ls-files --others --exclude-standard)"; then
+            echo "::error::Untracked build inputs found:"
+            git ls-files --others --exclude-standard
+            exit 1
+          fi
           ./gradlew --no-daemon :patches:buildAndroid
       - name: Verify .mpp and checksum
         shell: bash
