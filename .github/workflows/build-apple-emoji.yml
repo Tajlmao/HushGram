@@ -1,0 +1,83 @@
+# Experimental HushGram Apple-style Emoji patch source build
+# Add this file at .github/workflows/build-apple-emoji.yml in YOUR fork of SysAdminDoc/HushGram.
+# Does not include or redistribute an Apple emoji font. Test only on a spare installation.
+name: Build HushGram Apple Emoji MPP (experimental)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GITHUB_ACTOR: ${{ github.actor }}
+      GITHUB_TOKEN: ${{ secrets.MORPHE_PACKAGES_TOKEN || secrets.GITHUB_TOKEN }}
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8"
+    steps:
+      - name: Check out fork of upstream HushGram
+        uses: actions/checkout@v4
+      - name: Install Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Check checkout and apply emoji-only patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f patches/src/main/kotlin/app/morphe/patches/instagram/misc/emoji/EmojiStylePatch.kt
+          test -f extensions/instagram/src/main/java/app/hushgram/extension/instagram/stories/StoryEmoji.java
+          mkdir -p /tmp/apple-emoji-source
+          python3 - <<'PYTHON'
+          import base64, zlib, pathlib, hashlib
+          files = {
+            'apply_to_hushgram.py': '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',
+            'EmojiCompatApple.java': 'eNq1Vm1v2zYQ/u5fccmHTs4SOmiBfojrDkXqdhnSJqiTocMwFLRES6xlUiOpJEKb/747UrJlWXOKAdMHv4h3z709d7zR0QCO4FwXlZFp5uD56fOX8Gtps/eGryDWyhk5L502luQy5wp7Nhql0mXlnMV6NZpV9k2ykuqtjkeNHoqS9PShEEauhHI8B/HghLJSqzEo7aDgxoFeAFf4uZCxRJG1WSNywa1gBDK7fvv55FLGqCxOLhIEkwspzBm8v748ecFOT7TKKxQcDQoeL3kqgBcFyxAqRSi2Nsukso77dxbDkcKOBwO5KjT6wVVitEwYhYsG2Dl9P7hx9xy1i0zGll1zqfYc31SFWPBY7EgQKpsVXCk+z8UMc6vSPUIi6T+0rsoF+ySKHI1Qfkl6E85XfseZ1OydzEUryCfTIpxDfyyb1T/GT6jajBuRsFsnc0pmUc5zGcNCKqxlnHNrYbrSX+W5XhXcvSmKXMC3AeBTGHnHndg5jobwDR4HXmZ0dAS3ViQwr+Ci8fEnC1YgdUhZkPKJXFHJjVCJMMJAZASPHTpnKWNBBoy+t0NGFPHGg5uI6PCrKRV4oOYfOeKF6XGmav2jxwhXGgXCVzFB4V9ghpyqfDxsgezBd2egyjwfrxUfIeYuziC6ydAh0gSZKo0ZHPbDd9QH4XOdnPOMq1RYcFntPOLH+HspKrjPhPIHFjspdqLJBLkGcVD8l4QEUgbEcwL8wM3yiXzIBUQHm2x8/96TjsnEBzTsj46euuv80KHvCXhmsVS4+igajnfsrqWfxKd2QHbix6Tt31IUrkHpwT8gDSYtaUfDPfD1wSEnJh/Cz3CpVcqcDgmNPEwuVOqyaHgML14OUeTw4XALo3n6lbl1H3RC4y+pIf4fdjXtWTNirjWO4zbdN4A1WChUM0A+CZ5UKPbsGTSjhH28urn6Mv1w9dsF1bNzOLu5+vRH+3TcIXuwh5znOXqA5FyJRKKLeQVzscAo26OEFUbHwtqoKRZS/QZ7AYd+6meT5wvRsoGVFkrldIlsT86ALpS6Xzoj1sLC6FXbFuAEBFvOrZOuxD5jDSQZLC1OJFsiH2Tdp77/HFaoTDPPQTp4HQDDoVRA11PlnWzQ+voU29/MxN+lUDi86oixOFuvjbBl7p7u3SDXtBD170Hzzl8PiIVXdX0l+f7edHuXXi1WBIjtLnnc+reevj72ye7Y2O3HINlp9sbSlnTtL1hfuQlE6wD6HOuU+s+/sKFUIhNkGSl7ECKn50F0elyDtFq6g8D8Fdg3sda4tTKFc/oDsWx2BigLAkhg0jOI/HJClJjTpFPiPrzpJtMLUM+uLz1KbUcIewuiTmCbxOAdtwmmjwhb4W5xaVNo//mOTPvJL1UpxrtAGBEqG9ctxYxebmwM+1VxPegqTlWyXw1dDxZfwSlRnjBeTWov6v+vuyxox7ADORq1RwftMp6Zsb7DOSEecHHBwaOVgFslY53UKw7e4aGdGVyjNWHucJThMDF9+DsDKwqrAXcO73J6bY8xBBkvhcFfwsVs6DelUi2VvldrY5b1ZqRVN+8cZTGk4DhkZggHE0rNvmLWHE7zqsi2mz4x/F5tAx57tP76eAS8m6erwlVh8TgItM64fU+HQWR/WQhp3U/NYGk1GDZQp/1qD3u8qtWYwezcCVLbS7JG3AZORt5WT2uE1mxn5Lh3b2iNPTa7fvPxy/Tz+eXt7OL36ebXcN9ArmdQJx2439bXwVlz9F82D+TnR0Fcn+OWvtxs9eFCDju83z0Xm8sS5w91CeDOmuR0uOC0agx+4LppdprHwT/4JZjm',
+          }
+          root = pathlib.Path('/tmp/apple-emoji-source')
+          for name, payload in files.items():
+              contents = zlib.decompress(base64.b64decode(payload))
+              (root / name).write_bytes(contents)
+              print(name, 'sha256', hashlib.sha256(contents).hexdigest())
+          PYTHON
+          mkdir -p /tmp/apple-emoji-source/files/extensions/instagram/src/main/java/app/hushgram/extension/instagram/stories
+          cp /tmp/apple-emoji-source/EmojiCompatApple.java /tmp/apple-emoji-source/files/extensions/instagram/src/main/java/app/hushgram/extension/instagram/stories/
+          python3 /tmp/apple-emoji-source/apply_to_hushgram.py "$GITHUB_WORKSPACE"
+          git diff --stat
+      - name: Build actual Morphe .mpp bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :patches:generatePatchesList
+          ./gradlew --no-daemon :patches:buildAndroid
+      - name: Verify .mpp and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          find patches/build/release -maxdepth 1 -type f -name '*.mpp' -print
+          mapfile -t bundles < <(find patches/build/release -maxdepth 1 -type f -name '*.mpp')
+          test "${#bundles[@]}" -ge 1
+          for bundle in "${bundles[@]}"; do
+            unzip -t "$bundle" | tail -1
+            sha256sum "$bundle" | tee -a patches/build/release/experimental-apple-emoji-SHA256SUMS.txt
+          done
+      - name: Downloadable patch (Artifact ZIP includes the .mpp)
+        uses: actions/upload-artifact@v4
+        with:
+          name: hushgram-apple-emoji-experimental-mpp
+          path: |
+            patches/build/release/*.mpp
+            patches/build/release/experimental-apple-emoji-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+          
